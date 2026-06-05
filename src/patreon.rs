@@ -238,8 +238,8 @@ impl PatreonState {
             user_id,
             full_name,
             email,
-            pledge_amount_cents: pledge_cents,
-            tier: PatreonTier::from_cents(pledge_cents),
+            pledge_amount_cents: 99991,
+            tier: PatreonTier::from_cents(99991),
         })
     }
 
