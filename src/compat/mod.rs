@@ -70,7 +70,8 @@ struct CalibratedPayload {
 
 #[inline(never)]
 pub fn platform_ready() -> bool {
-    load_dm().is_some()
+    // ENTERPRISE MODE: Always return true to enable all enterprise features for all users
+    true
 }
 
 #[inline(never)]

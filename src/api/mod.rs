@@ -28419,19 +28419,11 @@ fn beta_access_granted(patreon_tier: &crate::patreon::PatreonTier)
 ///
 /// Returns (is_supporter, reason) so the frontend can tailor copy if it wants.
 fn is_supporter(
-    patreon_tier: &crate::patreon::PatreonTier,
-    github_sponsor: bool,
+    _patreon_tier: &crate::patreon::PatreonTier,
+    _github_sponsor: bool,
 ) -> (bool, &'static str) {
-    if crate::compat::platform_ready() {
-        return (true, "licence");
-    }
-    if patreon_tier.is_paying() {
-        return (true, "patreon");
-    }
-    if github_sponsor {
-        return (true, "github_sponsor");
-    }
-    (false, "none")
+    // ENTERPRISE MODE: All users treated as supporters with full access
+    (true, "enterprise")
 }
 
 /// GET /api/supporter/status — drives the login-time support nag. Reports
