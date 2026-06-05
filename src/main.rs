@@ -1910,22 +1910,6 @@ async fn main() -> std::io::Result<()> {
             });
         }
 
-        // Background: Patreon membership sync (every 24h)
-        let patreon_state = app_state.patreon.clone();
-        tokio::spawn(async move {
-            // Initial delay — let the server settle before first check
-            tokio::time::sleep(Duration::from_secs(60)).await;
-            loop {
-                if patreon_state.config.read().map(|c| c.linked).unwrap_or(false) {
-                    match patreon_state.sync_membership().await {
-                        Ok(tier) => info!("Patreon tier synced: {:?}", tier),
-                        Err(e) => warn!("Patreon sync failed: {}", e),
-                    }
-                }
-                tokio::time::sleep(Duration::from_secs(86400)).await; // 24 hours
-            }
-        });
-
         // Background: Enterprise license heartbeat (once daily)
         // Reports server hostname, version, and cluster name to Wolf Software Systems
         // for license compliance. Fire-and-forget — never blocks the server.

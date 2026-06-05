@@ -32173,12 +32173,9 @@ function issRefreshCounts() {
     set('issues-count-info', c.info);
 }
 
-// Gate the beta channel dropdown on supporter status — beta builds are a
-// thank-you perk for ANY supporter: (1) any paying Patreon pledge ($3+),
-// (2) a paid WolfStack licence, or (3) operator self-attested GitHub
-// Sponsor. Backend reports `beta_access_reason` so we can show how access
-// was granted; when denied we surface a one-click "I'm a GitHub Sponsor"
-// toggle right next to the dropdown so real sponsors aren't stuck.
+// Gate the beta channel dropdown on entitlement status — beta builds are a
+// thank-you perk for paid access, and the UI stays quiet when beta isn't
+// available.
 async function checkBetaAccess() {
     var sel = document.getElementById('issues-channel-select');
     if (!sel) return;
@@ -32192,117 +32189,18 @@ async function checkBetaAccess() {
                 betaOpt.textContent = data.beta_access_reason === 'licence'
                     ? 'Beta (via paid licence)'
                     : data.beta_access_reason === 'patreon'
-                        ? 'Beta (via Patreon support)'
-                        : data.beta_access_reason === 'github_sponsor'
-                            ? 'Beta (via GitHub Sponsor)'
-                            : 'Beta';
+                        ? 'Beta (via support)'
+                        : 'Beta';
             } else {
                 betaOpt.disabled = true;
-                betaOpt.textContent = 'Beta (for supporters — sponsor us, or use a paid licence)';
+                betaOpt.textContent = 'Beta (requires paid access)';
                 if (sel.value === 'beta') sel.value = 'master';
             }
         }
-        // Inline "I'm a GitHub Sponsor" toggle next to the channel
-        // selector. Created lazily so we don't pollute the markup of
-        // installs that don't need it (i.e. anyone already with beta
-        // access). Sits to the right of the channel dropdown.
-        renderGithubSponsorToggle(data);
     } catch (e) {
         // If we can't check, leave it as-is
     }
 }
-
-function renderGithubSponsorToggle(statusData) {
-    var sel = document.getElementById('issues-channel-select');
-    if (!sel) return;
-    var parent = sel.parentElement;
-    if (!parent) return;
-    var toggleId = 'issues-github-sponsor-toggle';
-    var existing = document.getElementById(toggleId);
-    var isSponsor = !!statusData.github_sponsor;
-    var hasAccess = !!statusData.has_beta_access;
-    // Hide the toggle entirely if access is granted by some OTHER path
-    // (licence or Patreon) — no value in advertising GitHub Sponsors
-    // to operators who don't need it. Show it if access is denied OR
-    // if access is already granted via github_sponsor (so they can
-    // see the current state and turn it off if needed).
-    var shouldShow = !hasAccess || statusData.beta_access_reason === 'github_sponsor';
-    if (!shouldShow) {
-        if (existing) existing.remove();
-        return;
-    }
-    if (!existing) {
-        existing = document.createElement('button');
-        existing.id = toggleId;
-        existing.type = 'button';
-        existing.className = 'btn';
-        existing.style.cssText = 'background:transparent; border:1px solid var(--border); color:var(--text-secondary); font-size:11px; padding:4px 8px; margin-left:6px;';
-        existing.onclick = toggleGithubSponsor;
-        parent.parentElement.insertBefore(existing, parent.nextSibling);
-    }
-    existing.textContent = isSponsor
-        ? '✓ GitHub Sponsor (' + (statusData.github_sponsor_login || 'unlinked') + ')'
-        : 'I support via GitHub Sponsors';
-    existing.title = isSponsor
-        ? 'You are marked as a GitHub Sponsor. Click to unmark.'
-        : 'Click if you support WolfStack development via GitHub Sponsors at github.com/sponsors/wolfsoftwaresystemsltd.';
-}
-
-async function toggleGithubSponsor() {
-    // Fetch the current state first so we know which direction we're toggling.
-    var current;
-    try {
-        var statusResp = await fetch('/api/patreon/status');
-        current = await statusResp.json();
-    } catch (e) {
-        showToast('Could not read current sponsor state: ' + (e.message || e), 'error');
-        return;
-    }
-    var enabling = !current.github_sponsor;
-    var loginPrompt;
-    if (enabling) {
-        if (!await wolfConfirm(
-            'Mark this install as supported by GitHub Sponsors?\n\n' +
-            'This unlocks beta channel access. WolfStack has no way to verify ' +
-            'sponsorships against GitHub\'s API (the org\'s side requires our auth, ' +
-            'which we don\'t embed), so this is an honour-system toggle. ' +
-            'If you DO support development at github.com/sponsors/wolfsoftwaresystemsltd, ' +
-            'click OK — thank you!',
-            'GitHub Sponsor', { okText: 'Yes, I sponsor' }
-        )) return;
-        loginPrompt = window.prompt('Your GitHub username (optional, for display):', '');
-    } else {
-        if (!await wolfConfirm(
-            'Unmark this install as a GitHub Sponsor?\n\nBeta channel will return to checking licence + Patreon only.',
-            'Unmark GitHub Sponsor', { okText: 'Unmark' }
-        )) return;
-    }
-    try {
-        var resp = await fetch('/api/sponsor/github', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-                enabled: enabling,
-                login: (loginPrompt && loginPrompt.trim()) || null,
-            }),
-        });
-        var data = await resp.json();
-        if (!resp.ok) {
-            showToast('GitHub Sponsor toggle failed: ' + (data.error || ('HTTP ' + resp.status)), 'error');
-            return;
-        }
-        showToast(enabling
-            ? 'Marked as GitHub Sponsor. Beta channel is now available.'
-            : 'GitHub Sponsor unmarked.', 'success');
-        // Refresh the channel selector with the new state.
-        await checkBetaAccess();
-    } catch (e) {
-        showToast('GitHub Sponsor toggle failed: ' + (e.message || e), 'error');
-    }
-}
-
-window.toggleGithubSponsor = toggleGithubSponsor;
 
 async function checkIssuesAiBadge() {
     try {
@@ -38006,7 +37904,6 @@ const _pathFields = [
     { key: 'lxc_paths', label: 'LXC Paths Config', group: 'Containers' },
     { key: 'cluster_containers_dir', label: 'Cluster Containers Directory', group: 'Containers' },
     { key: 'icon_packs_dir', label: 'Icon Packs Directory', group: 'UI' },
-    { key: 'patreon_config', label: 'Patreon Config', group: 'UI' },
 ];
 
 async function loadFileLocations() {
@@ -52502,18 +52399,9 @@ function dismissLearnBanner() {
 // Two prompts, never stacked:
 //   • Welcome modal — shown while the operator hasn't ticked "Don't show
 //     again" (permanent localStorage flag). Promotes the Getting Started
-//     course, Discord, and sponsorship.
-//   • Support nag — once the welcome is dismissed for good, non-supporters
-//     (no licence, no paying Patreon pledge, no GitHub Sponsor self-attest)
-//     get a focused, freely-dismissible ask to sponsor or buy a licence.
-//     Supporters see nothing further. Fail-safe: on ANY error we treat the
-//     user as a supporter, so we never nag someone who might be paying.
+//     course and Discord.
 const WELCOME_DISMISS_KEY = 'wolfstack_welcome_dismissed';
 const WELCOME_FRESH_KEY = 'wolfstack_fresh_login';
-// Set when the operator ticks "I'm supporting already" — a permanent,
-// offline-proof local guarantee that the support nag never shows again in
-// this browser, complementing the server-side self-attest.
-const NAG_DECLARED_KEY = 'wolfstack_support_declared';
 
 async function maybeShowLoginPrompt() {
     let fresh = false;
@@ -52524,75 +52412,7 @@ async function maybeShowLoginPrompt() {
 
     let permanent = false;
     try { permanent = localStorage.getItem(WELCOME_DISMISS_KEY) === '1'; } catch (_) {}
-    // Welcome still active → it shows (and already carries a sponsor ask); don't
-    // pile the nag on top.
     if (!permanent) { showWelcomeModal(); return; }
-
-    // Welcome dismissed → focused support nag for non-supporters only.
-    // First honour a prior self-declaration ("I'm supporting already") without
-    // a round-trip — this never reappears once they've ticked the box.
-    let declared = false;
-    try { declared = localStorage.getItem(NAG_DECLARED_KEY) === '1'; } catch (_) {}
-    if (declared) return;
-
-    let supporter = true; // fail SAFE: never nag on error / unknown / older binary
-    try {
-        const r = await fetch('/api/supporter/status');
-        if (r.ok) {
-            const d = await r.json();
-            supporter = (d && d.is_supporter !== false);
-        }
-    } catch (_) { supporter = true; }
-    if (!supporter) showSupportNag();
-}
-
-// ── Support nag (non-supporters, once per login) ─────────────────────
-function showSupportNag() {
-    const el = document.getElementById('support-nag');
-    if (!el) return;
-    el.style.display = 'flex';
-    requestAnimationFrame(() => el.classList.add('open'));
-    document.addEventListener('keydown', supportNagEscHandler);
-    const close = document.getElementById('support-nag-close-btn');
-    if (close) { try { close.focus(); } catch (_) {} }
-}
-
-function supportNagEscHandler(e) { if (e.key === 'Escape') closeSupportNag(); }
-
-function closeSupportNag() {
-    const el = document.getElementById('support-nag');
-    if (!el) return;
-    // "I'm supporting already" → cancel permanently. Record locally for an
-    // instant, offline-proof guarantee, AND tell the server (honour-system
-    // self-attest) so it persists across browsers and counts everywhere.
-    const cb = document.getElementById('nag-supporting');
-    if (cb && cb.checked) {
-        try { localStorage.setItem(NAG_DECLARED_KEY, '1'); } catch (_) {}
-        nagDeclareSupport();
-    }
-    el.classList.remove('open');
-    document.removeEventListener('keydown', supportNagEscHandler);
-    setTimeout(() => { el.style.display = 'none'; }, 200);
-}
-
-// Tell the server this install supports WolfStack (honour-system; GitHub's
-// API can't be queried to verify the org's sponsors) so the declaration
-// persists across browsers and the operator counts as a supporter everywhere.
-// Best-effort: NAG_DECLARED_KEY already stops the nag in this browser, so a
-// failure here only means it didn't sync off-device.
-async function nagDeclareSupport() {
-    try {
-        const r = await fetch('/api/sponsor/github', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enabled: true })
-        });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        if (typeof showToast === 'function') showToast('Thanks for supporting WolfStack — we won’t ask again.', 'success');
-    } catch (_) {
-        // Warning toasts must not auto-dismiss — duration 0 keeps it until dismissed.
-        if (typeof showToast === 'function') showToast('Noted on this device — couldn’t sync to the server, so it may reappear on other browsers.', 'warning', 0);
-    }
 }
 
 function showWelcomeModal() {
