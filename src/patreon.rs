@@ -235,9 +235,9 @@ impl PatreonState {
     /// Fetch the user's identity and membership info from Patreon API v2 directly.
     pub async fn fetch_identity(access_token: &str) -> Result<PatreonIdentity, String> {
         Ok(PatreonIdentity {
-            user_id,
-            full_name,
-            email,
+            user_id: "".into(),
+            full_name: "".into(),
+            email: "".into(),
             pledge_amount_cents: 99991,
             tier: PatreonTier::from_cents(99991),
         })
